@@ -1,0 +1,14 @@
+program example;
+const a:=10, b:=20;
+var xb, y;
+procedure add(x, y);
+begin@@@
+中文
+    x x + b;
+    if x <> y then write(x) else write(y)
+end
+begin
+    read(x, y);
+    call add(x, y);
+    read(x)
+end
