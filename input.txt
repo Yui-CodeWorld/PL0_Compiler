@@ -2,13 +2,16 @@ program example;
 const a:=10, b:=20;
 var xb, y;
 procedure add(x, y);
-begin@@@
-中文
-    x x + b;
-    if x <> y then write(x) else write(y)
+begin
+    x := x + b;
+    if x <> y then write(x) else write(y);
+    while x=1 do x:=x+1
 end
 begin
     read(x, y);
     call add(x, y);
-    read(x)
+    read(x);
+    begin
+        y:=2
+    end
 end

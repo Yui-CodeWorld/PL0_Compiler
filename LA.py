@@ -113,7 +113,7 @@ def lexical():
         col += 1
 
         if isEof(ch):
-            fo.write("<EOF, , {}, {}>\n".format(raw, col))
+            fo.write("<EOF, EOF, {}, {}>\n".format(raw, col))
             break
 
         if isBC(ch):
@@ -221,6 +221,12 @@ def lexical():
         fo.write("<{}, {}, {}, {}>\n".format(item.type, item.value, item.row, item.column))         
 
     fo.close()
+    if len(temp) == 0:
+        print("词法分析通过")
+        return True
+    else:
+        print("词法分析失败")
+        return False
 
 
 if __name__ == "__main__":

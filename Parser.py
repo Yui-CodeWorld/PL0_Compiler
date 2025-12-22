@@ -15,685 +15,649 @@ def parse_token_string(token_str):
     return Token(token_type=parts[0], value=parts[1], line=parts[2], col=parts[3])
 
 
-# <prog> → program <id>；<block>
-def prog():
+def load_tokens():
+    tokens = []
+    while next_token_flag():
+        tokens.append(next_token_def())
+    return tokens
+
+
+def next_token_flag():
     fp = fi.tell()
     strline = fi.readline()
-    token = parse_token_string(strline)
-    if token.type == "KEYWORD" and token.value == "program":
-        strline = fi.readline()
-        token2 = parse_token_string(strline)
-        if token2.type == "ID":
-            fp2 = fi.tell()
-            strline = fi.readline()
-            token3 = parse_token_string(strline)
-            if token3.type == "SEMICOLON":
-                if block():
-                    return True
-                else:
-                    print("<prog>:<block> error")
-            else:
-                fi.seek(fp2)
-                print("raw{},col{}:Expected SEMICOLON").format(token3.line, token3.col)
-                return True
-        else:
-            print("<prog>:<id> error").format(token2.line, token2.col)
-    # else:
-    #     print("<prog>:no program").format(token.line, token.col)
-
+    if not strline:
+        return None
     fi.seek(fp)
-    print("<prog>:error")
+    return True
+
+
+def next_token_def():
+    strline = fi.readline()
+    if not strline:
+        return None
+    return parse_token_string(strline)
+
+
+def next_token():
+    global current_token_index
+    if current_token_index < len(tokens):
+        token = tokens[current_token_index]
+        current_token_index += 1
+        return token
+    else:
+        return None
+
+
+follow_set = {
+    "prog": {"EOF"},
+    "block": {"end", ";", "EOF", "."},
+    "condecl": {"var", "procedure", "begin"},
+    "const_def": {",", ";"},
+    "vardecl": {"procedure", "begin"},
+    "proc": {"begin", ";", "EOF"},
+    "body": {"end", ";", "else", "EOF"},
+    "statement": {"end", ";", "else"},
+    "lexp": {"then", "do"},
+    "exp": {
+        "<",
+        "<=",
+        ">",
+        ">=",
+        "=",
+        "<>",
+        ")",
+        ",",
+        ";",
+        "then",
+        "do",
+        "else",
+        "end",
+    },
+    "term": {
+        "+",
+        "-",
+        "<",
+        "<=",
+        ">",
+        ">=",
+        "=",
+        "<>",
+        ")",
+        ",",
+        ";",
+        "then",
+        "do",
+        "else",
+        "end",
+    },
+    "factor": {
+        "*",
+        "/",
+        "+",
+        "-",
+        "<",
+        "<=",
+        ">",
+        ">=",
+        "=",
+        "<>",
+        ")",
+        ",",
+        ";",
+        "then",
+        "do",
+        "else",
+        "end",
+    },
+}
+
+
+# <prog> → program <id>；<block>
+def prog():
+    token = next_token()
+    if token.value != "program":
+        print("{}行，{}列:期望一个 program".format(token.line, token.col))
+
+    token = next_token()
+    if token.type != "ID":
+        print("{}行，{}列:期望一个 id".format(token.line, token.col))
+    token = next_token()
+    if token.type != "SEMICOLON":
+        print("{}行，{}列:期望一个 ;".format(token.line, token.col))
+
+    if block():
+        return True
+
     return False
 
 
 # <block> → [<condecl>][<vardecl>][<proc>]<body>
 def block():
-    fp = fi.tell()
-    if condecl():
-        if vardecl():
-            if proc():
-                if body():
-                    return True
-                else:
-                    print("<block>:<body> error")
-            elif body():
-                return True
-            else:
-                print("<block>:<proc>/<body> error")
-        elif body():
-            return True
-        else:
-            print("<block>:<vardecl>/<body> error")
-    elif body():
-        return True
-    else:
-        print("<block>:<condecl>/<body> error")
+    token = next_token()
 
-    fi.seek(fp)
-    print("<block>:error")
+    if token.value == "const":
+        condecl(token)
+        token = next_token()
+
+    if token.value == "var":
+        vardecl(token)
+        token = next_token()
+
+    if token.value == "procedure":
+        proc(token)
+        token = next_token()
+
+    if token.value == "begin":
+        if body(token):
+            return True
+    else:
+        print("{}行，{}列:期望一个 begin".format(token.line, token.col))
+
     return False
 
 
 # <condecl> → const <const>{,<const>};
-def condecl():
-    flag=0
-    fp = fi.tell()
-    strline = fi.readline()
-    token = parse_token_string(strline)
-    if token.type == "KEYWORD" and token.value == "const":
-        flag=1
-        if const():
-            fp2 = fi.tell()
-            strline = fi.readline()
-            token2 = parse_token_string(strline)
-            while token2.type == "COMMA":
-                if const():
-                    fp2 = fi.tell()
-                    strline = fi.readline()
-                    token2 = parse_token_string(strline)
-                else:
-                    print("<condecl>:, <const> error")
-                    return False
-            if token2.type == "SEMICOLON":
-                return True
-            else:
-                fi.seek(fp2)
-                print("raw{},col{}:Expected SEMICOLON").fomat(token2.line, token2.col)
-                return True
-        else:
-            print("<condecl>:<const> error")
-    # else:
-    #     print("<condecl>:no const")
+def condecl(token):
+    # if token.value != "const":
+    #     print("{}行，{}列:期望一个 const").format(token.line, token.col)
+    global current_token_index
+    token = next_token()
 
-    fi.seek(fp)
-    if flag:
-        print("<condecl>:error")
+    if token.type == "ID":
+        const(token)
+        token = next_token()
+        while token.type == "COMMA":
+            token = next_token()
+            if token.type == "ID":
+                const(token)
+                token = next_token()
+            else:
+                print("{}行，{}列:期望一个 id".format(token.line, token.col))
+        if token.type != "SEMICOLON":
+            print("{}行，{}列:期望一个 ;".format(token.line, token.col))
+        else:
+            return True
+    else:
+        print("{}行，{}列:期望一个 id".format(token.line, token.col))
+
+    while token.value not in follow_set["condecl"]:
+        token = next_token()
+
+    current_token_index -= 1
     return False
 
 
 # <const> → <id>:=<integer>
-def const():
-    flag=0
-    fp = fi.tell()
-    strline = fi.readline()
-    token = parse_token_string(strline)
+def const(token):
+    global current_token_index
     if token.type == "ID":
-        flag=1
-        strline = fi.readline()
-        token2 = parse_token_string(strline)
-        if token2.type == "ASSIGN":
-            strline = fi.readline()
-            token3 = parse_token_string(strline)
-            if token3.type == "INTEGER":
+        token = next_token()
+        if token.type == "ASSIGN":
+            token = next_token()
+            if token.type == "INTEGER":
                 return True
             else:
-                print("<const>:<integer> error")
+                print("{}行，{}列:期望一个 integer".format(token.line, token.col))
         else:
-            print("<const>:no :=")
-    # else:
-    #     print("<const>:<id> error")
+            print("{}行，{}列:期望一个 :=".format(token.line, token.col))
+    else:
+        print("{}行，{}列:期望一个 id".format(token.line, token.col))
 
-    fi.seek(fp)
-    if flag:
-        print("<const>:error")
+    while token.value not in follow_set["const_def"]:
+        token = next_token()
+
+    current_token_index -= 1
     return False
 
 
 # <vardecl> → var <id>{,<id>};
-def vardecl():
-    flag=0
-    fp = fi.tell()
-    strline = fi.readline()
-    token = parse_token_string(strline)
+def vardecl(token):
+    global current_token_index
     if token.type == "KEYWORD" and token.value == "var":
-        flag=1
-        strline = fi.readline()
-        token2 = parse_token_string(strline)
-        if token2.type == "ID":
-            fp2 = fi.tell()
-            strline = fi.readline()
-            token3 = parse_token_string(strline)
-            while token3.type == "COMMA":
-                strline = fi.readline()
-                token4 = parse_token_string(strline)
-                if token4.type == "ID":
-                    fp2 = fi.tell()
-                    strline = fi.readline()
-                    token3 = parse_token_string(strline)
+        token = next_token()
+        if token.type == "ID":
+            token = next_token()
+            while token.type == "COMMA":
+                token = next_token()
+                if token.type == "ID":
+                    token = next_token()
                 else:
-                    print("<vardecl>:, <id> error")
-                    return False
-            if token3.type == "SEMICOLON":
-                return True
+                    print("{}行，{}列:期望一个 id".format(token.line, token.col))
+            if token.type != "SEMICOLON":
+                print("{}行，{}列:期望一个 ;".format(token.line, token.col))
             else:
-                fi.seek(fp2)
-                print("raw{},col{}:Expected SEMICOLON").format(token3.line, token3.col)
                 return True
         else:
-            print("<vardecl>:<id> error")
-    # else:
-    #     print("<vardecl>:no var")
+            print("{}行，{}列:期望一个 id".format(token.line, token.col))
+    else:
+        print("{}行，{}列:期望一个 var".format(token.line, token.col))
 
-    fi.seek(fp)
-    if flag:
-        print("<vardecl>:error")
+    while token.value not in follow_set["vardecl"]:
+        token = next_token()
+    current_token_index -= 1
     return False
 
 
 # <proc> → procedure <id>（[<id>{,<id>}]）;<block>{;<proc>}
-def proc():
-    flag=0
-    fp = fi.tell()
-    strline = fi.readline()
-    token = parse_token_string(strline)
+def proc(token):
+    global current_token_index
     if token.type == "KEYWORD" and token.value == "procedure":
-        flag=1
-        strline = fi.readline()
-        token2 = parse_token_string(strline)
-        if token2.type == "ID":
-            strline = fi.readline()
-            token3 = parse_token_string(strline)
-            if token3.type == "LPAREN" and token3.value == "(":
-                strline = fi.readline()
-                token4 = parse_token_string(strline)
-                if token4.type == "ID":
-                    fp2 = fi.tell()
-                    strline = fi.readline()
-                    token5 = parse_token_string(strline)
-                    while token5.type == "COMMA":
-                        strline = fi.readline()
-                        token6 = parse_token_string(strline)
-                        if token6.type == "ID":
-                            fp2 = fi.tell()
-                            strline = fi.readline()
-                            token5 = parse_token_string(strline)
+        token = next_token()
+        if token.type == "ID":
+            token = next_token()
+            if token.type == "LPAREN" and token.value == "(":
+                token = next_token()
+                if token.type == "ID":
+                    token = next_token()
+                    while token.type == "COMMA":
+                        token = next_token()
+                        if token.type == "ID":
+                            token = next_token()
                         else:
-                            print("<proc>:, <id> error")
-                            return False
-                    if token5.type == "RPAREN" and token5.value == ")":
-                        fp3 = fi.tell()
-                        strline = fi.readline()
-                        token7 = parse_token_string(strline)
-                        if token7.type == "SEMICOLON":
-                            if block():
-                                fp4 = fi.tell()
-                                strline = fi.readline()
-                                token8 = parse_token_string(strline)
-                                while token8.type == "SEMICOLON":
-                                    if proc():
-                                        fp4 = fi.tell()
-                                        strline = fi.readline()
-                                        token8 = parse_token_string(strline)
-                                    else:
-                                        print("<proc>:; <proc> error")
-                                        return False
-                                fi.seek(fp4)
-                                return True
-                            else:
-                                print("<proc>:<block> error")
-                                return False
-                        else:
-                            fi.seek(fp3)
-                            print("raw{},col{}:Expected SEMICOLON").format(
-                                token7.line, token7.col
+                            print(
+                                "{}行，{}列:期望一个 id".format(token.line, token.col)
                             )
-                            return True
+                    if token.type == "RPAREN" and token.value == ")":
+                        token = next_token()
+                        if token.type == "SEMICOLON":
+                            if block():
+                                token = next_token()
+                                while token.type == "SEMICOLON":
+                                    token = next_token()
+                                    if (
+                                        token.type == "KEYWORD"
+                                        and token.value == "procedure"
+                                    ):
+                                        proc()
+                                    else:
+                                        print(
+                                            "{}行，{}列:期望一个 procedure".format(
+                                                token.line, token.col
+                                            )
+                                        )
+                                current_token_index -= 1
+                                return True
+                        else:
+                            print("{}行，{}列:期望一个 ;".format(token.line, token.col))
                     else:
-                        fi.seek(fp2)
-                        print("raw{},col{}:Expected ')'").format(
-                            token5.line, token5.col
-                        )
-                        return True
+                        print("{}行，{}列:期望一个 )".format(token.line, token.col))
+                else:
+                    print("{}行，{}列:期望一个 id".format(token.line, token.col))
             else:
-                print("<proc>:no (")
+                print("{}行，{}列:期望一个 (".format(token.line, token.col))
         else:
-            print("<proc>:<id> error")
-    # else:
-    #     print("<proc>:no procedure")
+            print("{}行，{}列:期望一个 id".format(token.line, token.col))
+    else:
+        print("{}行，{}列:期望一个 procedure".format(token.line, token.col))
 
-    fi.seek(fp)
-    if flag:
-        print("<proc>:error")
+    while token.value not in follow_set["proc"]:
+        token = next_token()
+
+    current_token_index -= 1
     return False
 
 
 # <body> → begin <statement>{;<statement>}end
-def body():
-    flag=0
-    fp = fi.tell()
-    strline = fi.readline()
-    token = parse_token_string(strline)
+def body(token):
+    global current_token_index
     if token.type == "KEYWORD" and token.value == "begin":
-        flag=1
         if statement():
-            fp2 = fi.tell()
-            strline = fi.readline()
-            token2 = parse_token_string(strline)
-            while token2.type == "SEMICOLON":
+            token = next_token()
+            while token.type == "SEMICOLON":
                 if statement():
-                    fp2 = fi.tell()
-                    strline = fi.readline()
-                    token2 = parse_token_string(strline)
+                    token = next_token()
                 else:
                     print("<body>:; <statement> error")
                     return False
-            if token2.type == "KEYWORD" and token2.value == "end":
-                return True
+            if token.value != "end":
+                print("{}行，{}列:期望一个 end".format(token.line, token.col))
             else:
-                fi.seek(fp2)
-                print("raw{},col{}:Expected 'end'").format(token2.line, token2.col)
                 return True
-        else:
-            print("<body>:<statement> error")
-    # else:
-    #     print("<body>:no begin")
+    else:
+        print("{}行，{}列:期望一个 begin".format(token.line, token.col))
 
-    fi.seek(fp)
-    if flag:
-        print("<body>:error")
+    while token.value not in follow_set["body"]:
+        token = next_token()
+
+    current_token_index -= 1
     return False
 
 
 def statement():
-    fp = fi.tell()
-    if assignment():
-        return True
-    elif condition():
-        return True
-    elif cycle():
-        return True
-    elif call():
-        return True
-    elif body():
-        return True
-    elif read():
-        return True
-    elif write():
-        return True
+    token = next_token()
+    if token.value == "if":
+        if condition(token):
+            return True
 
-    fi.seek(fp)
-    print("<statement>:error")
+    if token.value == "while":
+        if cycle(token):
+            return True
+
+    if token.value == "call":
+        if call(token):
+            return True
+
+    if token.value == "read":
+        if read(token):
+            return True
+
+    if token.value == "write":
+        if write(token):
+            return True
+
+    if token.type == "ID":
+        if assignment(token):
+            return True
+    
+    if token.value == "begin":
+        if body(token):
+            return True
+
     return False
 
 
 # <id> := <exp>
-def assignment():
-    flag=0
-    fp = fi.tell()
-    strline = fi.readline()
-    token = parse_token_string(strline)
+def assignment(token):
+    global current_token_index
     if token.type == "ID":
-        flag=1
-        strline = fi.readline()
-        token2 = parse_token_string(strline)
-        if token2.type == "ASSIGN":
+        token = next_token()
+        if token.type == "ASSIGN":
             if exp():
                 return True
-            else:
-                print("<assignment>:<exp> error")
         else:
-            print("<assignment>:no :=")
-    # else:
-    #     print("<assignment>:<id> error")
+            print("{}行，{}列:期望一个 :=".format(token.line, token.col))
+    else:
+        print("{}行，{}列:期望一个 id".format(token.line, token.col))
 
-    fi.seek(fp)
-    if flag:
-        print("<assignment>:error")
+    while token.value not in follow_set["statement"]:
+        token = next_token()
+
+    current_token_index -= 1
     return False
 
 
 # <exp> → [+|-]<term>{<aop><term>}
 def exp():
-    flag=0
-    fp = fi.tell()
-    strline = fi.readline()
-    token = parse_token_string(strline)
+    global current_token_index
+    token = next_token()
     if token.type == "AOP":
-        flag=1
         if term():
-            fp2 = fi.tell()
-            strline = fi.readline()
-            token2 = parse_token_string(strline)
-            while token2.type == "AOP":
+            token = next_token()
+            flag = 1
+            while token.type == "AOP":
                 if term():
-                    fp2 = fi.tell()
-                    strline = fi.readline()
-                    token2 = parse_token_string(strline)
+                    token = next_token()
                 else:
-                    print("<exp>:aop <term> error")
-            fi.seek(fp2)
-            return True
-        else:
-            print("<exp>:aop <term> error")
+                    flag = 0
+            if flag:
+                current_token_index -= 1
+                return True
     else:
-        flag=1
-        fi.seek(fp)
+        current_token_index -= 1
         if term():
-            fp2 = fi.tell()
-            strline = fi.readline()
-            token2 = parse_token_string(strline)
-            while token2.type == "AOP":
+            token = next_token()
+            flag = 1
+            while token.type == "AOP":
                 if term():
-                    fp2 = fi.tell()
-                    strline = fi.readline()
-                    token2 = parse_token_string(strline)
+                    token = next_token()
                 else:
-                    print("<exp>:aop <term> error")
-            fi.seek(fp2)
-            return True
-        # else:
-        #     print("<exp>:<term> error")
+                    flag = 0
+            if flag:
+                current_token_index -= 1
+                return True
 
-    fi.seek(fp)
-    if flag:
-        print("<exp>:error")
+    while token.value not in follow_set["exp"]:
+        token = next_token()
+
+    current_token_index -= 1
     return False
 
 
 # <term> → <factor>{<mop><factor>}
 def term():
-    flag=0
-    fp = fi.tell()
+    global current_token_index
+    flag1 = 0
     if factor():
-        flag=1
-        fp2 = fi.tell()
-        strline = fi.readline()
-        token2 = parse_token_string(strline)
-        while token2.type == "MOP":
+        flag1 = 1
+        flag = 1
+        token = next_token()
+        while token.type == "MOP":
             if factor():
-                fp2 = fi.tell()
-                strline = fi.readline()
-                token2 = parse_token_string(strline)
+                token = next_token()
             else:
-                print("<term>:mop <factor> error")
-                return False
-        fi.seek(fp2)
-        return True
-    # else:
-    #     print("<term>:<factor> error")
+                flag = 0
+        if flag:
+            current_token_index -= 1
+            return True
 
-    fi.seek(fp)
-    if flag:
-        print("<term>:error")
+    if flag1:
+        while token.value not in follow_set["term"]:
+            token = next_token()
+        current_token_index -= 1
+
     return False
 
 
 # <factor>→<id>|<integer>|(<exp>)
 def factor():
-    flag=0
-    fp = fi.tell()
-    strline = fi.readline()
-    token = parse_token_string(strline)
+    global current_token_index
+    token = next_token()
     if token.type == "ID" or token.type == "INTEGER":
         return True
     elif token.type == "LPAREN" and token.value == "(":
-        flag=1
         if exp():
-            fp2 = fi.tell()
-            strline = fi.readline()
-            token2 = parse_token_string(strline)
-            if token2.type == "RPAREN" and token2.value == ")":
+            token = next_token()
+            if token.type == "RPAREN" and token.value == ")":
                 return True
             else:
-                fi.seek(fp2)
-                print("raw{},col{}:Expected ')'").format(token2.line, token2.col)
-                return True
+                print("{}行，{}列:期望一个 )".format(token.line, token.col))
 
-    fi.seek(fp)
-    if flag:
-        print("<factor>:error")
+    while token.value not in follow_set["factor"]:
+        token = next_token()
+
+    current_token_index -= 1
     return False
 
 
 # if <lexp> then <statement>[else <statement>]
-def condition():
-    flag=0
-    fp = fi.tell()
-    strline = fi.readline()
-    token = parse_token_string(strline)
+def condition(token):
+    global current_token_index
     if token.type == "KEYWORD" and token.value == "if":
-        flag=1
         if lexp():
-            strline = fi.readline()
-            token2 = parse_token_string(strline)
-            if token2.type == "KEYWORD" and token2.value == "then":
+            token = next_token()
+            if token.type == "KEYWORD" and token.value == "then":
                 if statement():
-                    fp2 = fi.tell()
-                    strline = fi.readline()
-                    token3 = parse_token_string(strline)
-                    if token3.type == "KEYWORD" and token3.value == "else":
+                    token = next_token()
+                    if token.type == "KEYWORD" and token.value == "else":
                         if statement():
                             return True
-                        else:
-                            print("<condition>:else <statement> error")
-                            return False
                     else:
-                        fi.seek(fp2)
+                        current_token_index -= 1
                         return True
-                else:
-                    print("<condition>:<statement> error")
             else:
-                print("<condition>:no then")
-        else:
-            print("<condition>:<lexp> error")
-    # else:
-    #     print("<condition>:no if")
+                print("{}行，{}列:期望一个 then".format(token.line, token.col))
+    else:
+        print("{}行，{}列:期望一个 if".format(token.line, token.col))
 
-    fi.seek(fp)
-    if flag:
-        print("<condition>:error")
+    while token.value not in follow_set["statement"]:
+        token = next_token()
+
+    current_token_index -= 1
     return False
 
 
 # <lexp> → <exp> <lop> <exp>|odd <exp>
 def lexp():
-    flag=0
-    fp = fi.tell()
+    global current_token_index
+    token = next_token()
+    if token.type == "KEYWORD" and token.value == "odd":
+        if exp():
+            return True
+
+    current_token_index -= 1
+    flag = 0
     if exp():
-        flag=1
-        strline = fi.readline()
-        token = parse_token_string(strline)
+        flag = 1
+        token = next_token()
         if token.type == "LOP":
             if exp():
                 return True
-        else:
-            print("<lexp>:<lop> <exp> error")
-    else:
-        strline = fi.readline()
-        token = parse_token_string(strline)
-        if token.type == "KEYWORD" and token.value == "odd":
-            flag=1
-            if exp():
-                return True
 
-    fi.seek(fp)
     if flag:
-        print("<lexp>:error")
+        while token.value not in follow_set["lexp"]:
+            token = next_token()
+
+        current_token_index -= 1
     return False
 
 
 # while <lexp> do <statement>
-def cycle():
-    flag=0
-    fp = fi.tell()
-    strline = fi.readline()
-    token = parse_token_string(strline)
+def cycle(token):
+    global current_token_index
     if token.type == "KEYWORD" and token.value == "while":
-        flag=1
         if lexp():
-            strline = fi.readline()
-            token2 = parse_token_string(strline)
-            if token2.type == "KEYWORD" and token2.value == "do":
+            token = next_token()
+            if token.type == "KEYWORD" and token.value == "do":
                 if statement():
                     return True
-                else:
-                    print("<cycle>:<statement> error")
             else:
-                print("<cycle>:no do")
-        else:
-            print("<cycle>:<lexp> error")
-    # else:
-    #     print("<cycle>:no while")
+                print("{}行，{}列:期望一个 do".format(token.line, token.col))
+    else:
+        print("{}行，{}列:期望一个 while".format(token.line, token.col))
 
-    fi.seek(fp)
-    if flag:
-        print("<cycle>:error")
+    while token.value not in follow_set["statement"]:
+        token = next_token()
+
+    current_token_index -= 1
     return False
 
 
 # call <id>（[<exp>{,<exp>}]）
-def call():
-    flag=0
-    fp = fi.tell()
-    strline = fi.readline()
-    token = parse_token_string(strline)
+def call(token):
+    global current_token_index
     if token.type == "KEYWORD" and token.value == "call":
-        flag=1
-        strline = fi.readline()
-        token2 = parse_token_string(strline)
-        if token2.type == "ID":
-            strline = fi.readline()
-            token3 = parse_token_string(strline)
-            if token3.type == "LPAREN" and token3.value == "(":
+        token = next_token()
+        if token.type == "ID":
+            token = next_token()
+            if token.type == "LPAREN" and token.value == "(":
                 if exp():
-                    fp2 = fi.tell()
-                    strline = fi.readline()
-                    token4 = parse_token_string(strline)
-                    while token4.type == "COMMA":
+                    flag = 1
+                    token = next_token()
+                    while token.type == "COMMA":
                         if exp():
-                            fp2 = fi.tell()
-                            strline = fi.readline()
-                            token4 = parse_token_string(strline)
+                            token = next_token()
                         else:
-                            print("<call>:, <exp> error")
-                            return False
-                    if token4.type == "RPAREN" and token4.value == ")":
-                        return True
-                    else:
-                        fi.seek(fp2)
-                        print("Expected ')'")
-                        return False
+                            flag = 0
+                    if flag:
+                        if token.type == "RPAREN" and token.value == ")":
+                            return True
+                        else:
+                            current_token_index -= 1
+                            print("{}行，{}列:期望一个 )".format(token.line, token.col))
                 else:
-                    fp2 = fi.tell()
-                    strline = fi.readline()
-                    token4 = parse_token_string(strline)
-                    if token4.type == "RPAREN" and token4.value == ")":
+                    token = next_token()
+                    if token.type == "RPAREN" and token.value == ")":
                         return True
                     else:
-                        fi.seek(fp2)
-                        print("raw{},col{}:Expected ')'").format(
-                            token4.line, token4.col
-                        )
-                        return True
-            else:
-                print("<call>:no (")
-        else:
-            print("<call>:<id> error")
-    # else:
-    #     print("<call>:no call")
+                        current_token_index -= 1
+                        print("{}行，{}列:期望一个 )".format(token.line, token.col))
 
-    fi.seek(fp)
-    if flag:
-        print("<call>:error")
+            else:
+                print("{}行，{}列:期望一个 (".format(token.line, token.col))
+        else:
+            print("{}行，{}列:期望一个 id".format(token.line, token.col))
+    else:
+        print("{}行，{}列:期望一个 call".format(token.line, token.col))
+
+    while token.value not in follow_set["statement"]:
+        token = next_token()
+
+    current_token_index -= 1
     return False
 
 
 # read (<id>{，<id>})
-def read():
-    flag=0
-    fp = fi.tell()
-    strline = fi.readline()
-    token = parse_token_string(strline)
+def read(token):
+    global current_token_index
     if token.type == "KEYWORD" and token.value == "read":
-        flag=1
-        strline = fi.readline()
-        token2 = parse_token_string(strline)
-        if token2.type == "LPAREN" and token2.value == "(":
-            strline = fi.readline()
-            token3 = parse_token_string(strline)
-            if token3.type == "ID":
-                fp2 = fi.tell()
-                strline = fi.readline()
-                token4 = parse_token_string(strline)
-                while token4.type == "COMMA":
-                    strline = fi.readline()
-                    token5 = parse_token_string(strline)
-                    if token5.type == "ID":
-                        fp2 = fi.tell()
-                        strline = fi.readline()
-                        token4 = parse_token_string(strline)
+        token = next_token()
+        if token.type == "LPAREN" and token.value == "(":
+            token = next_token()
+            if token.type == "ID":
+                flag = 1
+                token = next_token()
+                while token.type == "COMMA":
+                    token = next_token()
+                    if token.type == "ID":
+                        token = next_token()
                     else:
-                        print("<read>:, <id> error")
-                        return False
-                if token4.type == "RPAREN" and token4.value == ")":
-                    return True
-                else:
-                    fi.seek(fp2)
-                    print("raw{},col{}:Expected ')'").format(token4.line, token4.col)
-                    return True
+                        flag = 0
+                        print("{}行，{}列:期望一个 id".format(token.line, token.col))
+                if flag:
+                    if token.type == "RPAREN" and token.value == ")":
+                        return True
+                    else:
+                        current_token_index -= 1
+                        print("{}行，{}列:期望一个 )".format(token.line, token.col))
             else:
-                print("<read>:<id> error")
+                print("{}行，{}列:期望一个 id".format(token.line, token.col))
         else:
-            print("<read>:no (")
-    # else:
-    #     print("<read>:no read")
+            print("{}行，{}列:期望一个 (".format(token.line, token.col))
+    else:
+        print("{}行，{}列:期望一个 read".format(token.line, token.col))
 
-    fi.seek(fp)
-    if flag:
-        print("<read>:error")
+    while token.value not in follow_set["statement"]:
+        token = next_token()
+
+    current_token_index -= 1
     return False
 
 
 # write (<exp>{,<exp>})
-def write():
-    flag=0
-    fp = fi.tell()
-    strline = fi.readline()
-    token = parse_token_string(strline)
+def write(token):
+    global current_token_index
     if token.type == "KEYWORD" and token.value == "write":
-        flag=1
-        strline = fi.readline()
-        token2 = parse_token_string(strline)
-        if token2.type == "LPAREN" and token2.value == "(":
+        token = next_token()
+        if token.type == "LPAREN" and token.value == "(":
             if exp():
-                fp2 = fi.tell()
-                strline = fi.readline()
-                token3 = parse_token_string(strline)
-                while token3.type == "COMMA":
+                flag = 1
+                token = next_token()
+                while token.type == "COMMA":
                     if exp():
-                        fp2 = fi.tell()
-                        strline = fi.readline()
-                        token3 = parse_token_string(strline)
+                        token = next_token()
                     else:
-                        print("<write>:, <exp> error")
-                        return False
-                if token3.type == "RPAREN" and token3.value == ")":
-                    return True
-                else:
-                    fi.seek(fp2)
-                    print("raw{},col{}:Expected ')'").format(token3.line, token3.col)
-                    return True
-            else:
-                print("<write>:<exp> error")
+                        flag = 0
+                if flag:
+                    if token.type == "RPAREN" and token.value == ")":
+                        return True
+                    else:
+                        current_token_index -= 1
+                        print("{}行，{}列:期望一个 )".format(token.line, token.col))
         else:
-            print("<write>:no (")
-    # else:
-    #     print("<write>:no write")
+            print("{}行，{}列:期望一个 (".format(token.line, token.col))
+    else:
+        print("{}行，{}列:期望一个 write".format(token.line, token.col))
 
-    fi.seek(fp)
-    if flag:
-        print("<write>:error")
+    while token.value not in follow_set["statement"]:
+        token = next_token()
+
+    current_token_index -= 1
     return False
 
 
 def parse():
     if prog():
-        print("Parsing completed successfully.")
+        print("语法分析通过")
     else:
-        print("Parsing failed.")
+        print("语法分析失败")
 
-
+from LA import lexical
 if __name__ == "__main__":
+    flag=lexical()
+    if not flag:
+        exit(0)
+    current_token_index = 0
     fi = open("output.txt", "r")
-    parse()
+    tokens = load_tokens()
     fi.close()
+    parse()
