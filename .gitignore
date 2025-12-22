@@ -4,3 +4,5 @@ main.py
 semantic_analyzer.py
 syntax_analyzer.py
 common.py
+interpreter.py
+run.cpp
