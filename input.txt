@@ -1,29 +1,43 @@
-program example;
-const a:=10, b:=20;
-var x, y;
-procedure add(x, y);
-procedure add3(x);
-begin
-    x:=1
-end
-begin
-    x := x + b;
-    if x <> y then write(x) else write(y);
-    while x=1 do x:=x-1;
-    x:=2;
-    call add3(x);
-    write(x)
-end;
-procedure add2(x,y);
-begin
-    x:=1
-end
-begin
-    read(x, y);
-    call add(x, y);
-    read(x);
-    call add2(x,y);
+program demo;
+const c := 2, limit := 10;
+var n, result, temp;
+
+procedure outer(x, z);
+var i;
+    procedure inner(y);
     begin
-        y:=2
+        if odd y then
+            result := result + y
+        else
+            result := result - y
     end
+begin
+    i := 1;
+    while i <= x do
+    begin
+        call inner(i);
+        i := i + 1
+    end
+end;
+
+procedure fact(k);
+begin
+    if k = 0 then
+        result := 1
+    else
+    begin
+        call fact(k - 1);
+        result := result * k
+    end
+end
+
+begin
+    read(n, temp);
+    result := 0;
+
+    call outer(n + c, temp);
+    write(result);
+
+    call fact(temp);
+    write(result)
 end

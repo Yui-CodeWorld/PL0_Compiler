@@ -363,28 +363,14 @@ def proc(token):
         if token.type == "LPAREN" and token.value == "(":
             token = next_token()
             if token.type == "ID":
-                tmp = table.find(token.value)
-                if tmp == None:
-                    error = Error(token.line, token.col, token.value + "缺少定义")
-                    error.print_error()
-
-                else:
-                    table.record(token.value, tmp.type, level + 1, None)
-                    space += 1
+                table.record(token.value, "var", level + 1, None)
+                space += 1
                 token = next_token()
                 while token.type == "COMMA":
                     token = next_token()
                     if token.type == "ID":
-                        tmp = table.find(token.value)
-                        if tmp == None:
-                            error = Error(
-                                token.line, token.col, token.value + "缺少定义"
-                            )
-                            error.print_error()
-
-                        else:
-                            table.record(token.value, tmp.type, level + 1, None)
-                            space += 1
+                        table.record(token.value, "var", level + 1, None)
+                        space += 1
                         token = next_token()
                     else:
                         print("{}行，{}列:期望一个 id".format(token.line, token.col))
